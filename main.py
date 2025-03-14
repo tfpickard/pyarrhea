@@ -176,7 +176,7 @@ def transcribe_audio_segments(audio_file, segments):
         text += f"{num['orange'][0]}{cc} {num['orange'][1]}"
         text += f"{ssv[0]}voice detection so far{ssv[1]}\n"
         text += f"{sdk[0]}Duration:{sdk[1]} "
-        text += f"{sdv[0]}{seg['start']:.2f} - {seg['end']:.2f}{sdv[1]} "
+        text += f"{sdv[0]}{seg['start']:.2f} - {seg['end']:.2f}{sdv[1]}\n"
         text += f"[bold dark_magenta]Transcript:[/bold dark_magenta] "
         t = result['text'].strip()
         text += f"[italic honeydew2]{t}[/italic honeydew2]\n"
@@ -208,20 +208,6 @@ def get_id_from_url(url):
         id = url.split("v=")[-1].split("&")[0]
     return id
 def send_to_chatgpt_4o(transcript, num_speakers):
-    prompt = (
-        f"The following transcript contains {num_speakers} speakers. "
-        "Please identify the speakers based on any names or hints in the text. "
-        "If identities cannot be inferred, suggest roles such as interviewer/interviewee, father/son, etc.\n\n"
-        f"{transcript}"
-    )
-    response = client.completions.create(model="gpt-4o",
-    prompt=prompt,
-    max_tokens=500,
-    temperature=0.5)
-    if response:
-        return response.choices[0].text.strip()
-    else:
-        print("Failed to get a response from GPT-4o.")
         return None
 
 def main():
@@ -252,8 +238,11 @@ def main():
     num_speakers = len(transcripts[1])
     chatgpt_response = send_to_chatgpt_4o(final_transcript, num_speakers)
     if chatgpt_response:
-        print(Panel(chatgpt_response, title="[bold magenta]GPT-4o Speaker Identification[/bold magenta]", 
+        print(Panel(f"[italic spring_green1]{chatgpt_response}", title="[bold magenta]GPT-4o Speaker Identification[/bold magenta]", 
                     border_style="bold green", expand=False))
+    else:
+        print(Panel(f"[blink red]{chatgpt_response}", title="[bold red]GPT-4o Speaker Identification[/bold red]", 
+                    border_style="orange-red1", expand=False))
 
 if __name__ == "__main__":
     main()
