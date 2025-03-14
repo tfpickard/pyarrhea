@@ -209,7 +209,7 @@ def get_id_from_url(url):
     return id
 def send_to_chatgpt_4o(transcript, num_speakers):
     try:
-        response = client.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {
@@ -227,7 +227,7 @@ def send_to_chatgpt_4o(transcript, num_speakers):
                 }
             ]
         )
-        return response.choices[0].message['content']
+        return response.choices[0].message.content
     except Exception as e:
         print(f"Error communicating with OpenAI API: {e}")
         return None
@@ -264,7 +264,7 @@ def main():
                     border_style="bold green", expand=False))
     else:
         print(Panel(f"[blink red]{chatgpt_response}", title="[bold red]GPT-4o Speaker Identification[/bold red]", 
-                    border_style="orange-red1", expand=False))
+                    border_style="orange_red1", expand=False))
 
 if __name__ == "__main__":
     main()
