@@ -8,6 +8,7 @@ from yt_dlp import YoutubeDL
 from rich import print
 from rich.panel import Panel
 import inflect
+import requests
 import threading
 import simpleaudio as sa
 
@@ -197,7 +198,21 @@ def get_id_from_url(url):
     else:
         id = url.split("v=")[-1].split("&")[0]
     return id
-if __name__ == "__main__":
+def send_to_chatgpt_4o(transcript):
+    url = "https://api.chatgpt4o.com/identify_speakers"
+    headers = {
+        "Authorization": f"Bearer {os.environ['CHATGPT_4O_API_KEY']}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "transcript": transcript
+    }
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Failed to send transcript to ChatGPT 4o: {response.status_code}")
+        return None
     args = parse_arguments()
     if args.video_url:
         video_id = get_id_from_url(args.video_url)
@@ -220,3 +235,10 @@ if __name__ == "__main__":
         f.write(final_transcript)
     
     print("Transcription complete! Check final_transcript.txt")
+    
+    # Send the final transcript to ChatGPT 4o
+    chatgpt_response = send_to_chatgpt_4o(final_transcript)
+    if chatgpt_response:
+        print("ChatGPT 4o Speaker Identification:")
+        for speaker_info in chatgpt_response.get("speakers", []):
+            print(f"Speaker {speaker_info['id']}: {speaker_info['name']}")
