@@ -8,6 +8,7 @@ from yt_dlp import YoutubeDL
 from rich import print
 from rich.panel import Panel
 import inflect
+import openai
 import requests
 import threading
 import simpleaudio as sa
@@ -198,20 +199,24 @@ def get_id_from_url(url):
     else:
         id = url.split("v=")[-1].split("&")[0]
     return id
-def send_to_chatgpt_4o(transcript):
-    url = "https://api.chatgpt4o.com/identify_speakers"
-    headers = {
-        "Authorization": f"Bearer {os.environ['CHATGPT_4O_API_KEY']}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "transcript": transcript
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        return response.json()
+def send_to_chatgpt_4o(transcript, num_speakers):
+    openai.api_key = os.environ['OPENAI_API_KEY']
+    prompt = (
+        f"The following transcript contains {num_speakers} speakers. "
+        "Please identify the speakers based on any names or hints in the text. "
+        "If identities cannot be inferred, suggest roles such as interviewer/interviewee, father/son, etc.\n\n"
+        f"{transcript}"
+    )
+    response = openai.Completion.create(
+        model="gpt-4o",
+        prompt=prompt,
+        max_tokens=500,
+        temperature=0.5
+    )
+    if response:
+        return response.choices[0].text.strip()
     else:
-        print(f"Failed to send transcript to ChatGPT 4o: {response.status_code}")
+        print("Failed to get a response from GPT-4o.")
         return None
     args = parse_arguments()
     if args.video_url:
@@ -237,8 +242,8 @@ def send_to_chatgpt_4o(transcript):
     print("Transcription complete! Check final_transcript.txt")
     
     # Send the final transcript to ChatGPT 4o
-    chatgpt_response = send_to_chatgpt_4o(final_transcript)
+    num_speakers = len(transcripts[1])
+    chatgpt_response = send_to_chatgpt_4o(final_transcript, num_speakers)
     if chatgpt_response:
-        print("ChatGPT 4o Speaker Identification:")
-        for speaker_info in chatgpt_response.get("speakers", []):
-            print(f"Speaker {speaker_info['id']}: {speaker_info['name']}")
+        print("GPT-4o Speaker Identification:")
+        print(chatgpt_response)
