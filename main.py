@@ -208,6 +208,28 @@ def get_id_from_url(url):
         id = url.split("v=")[-1].split("&")[0]
     return id
 def send_to_chatgpt_4o(transcript, num_speakers):
+    try:
+        response = client.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that identifies speakers in a transcript."
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Here is a transcript with multiple speakers. "
+                        "Please attempt to identify the speakers based on any names or identifying information. "
+                        "If you cannot identify them, infer any relationships that may exist, such as interviewer and interviewee. "
+                        "Transcript:\n" + transcript
+                    )
+                }
+            ]
+        )
+        return response.choices[0].message['content']
+    except Exception as e:
+        print(f"Error communicating with OpenAI API: {e}")
         return None
 
 def main():
