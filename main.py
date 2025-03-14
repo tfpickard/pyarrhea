@@ -7,6 +7,8 @@ from yt_dlp import YoutubeDL
 from rich import print
 from rich.panel import Panel
 import inflect
+import threading
+import simpleaudio as sa
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Process YouTube video for transcription.")
@@ -125,7 +127,16 @@ def transcribe_audio_segments(audio_file, segments):
         ]
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
-        # Transcribe using Whisper
+        # Function to play audio
+        def play_audio(file_path):
+            wave_obj = sa.WaveObject.from_wave_file(file_path)
+            play_obj = wave_obj.play()
+            play_obj.wait_done()
+
+        # Start a thread to play the audio
+        audio_thread = threading.Thread(target=play_audio, args=(seg_audio,))
+        audio_thread.start()
+        audio_thread.join()
         result = model.transcribe(seg_audio)
         
         transcripts.append({
