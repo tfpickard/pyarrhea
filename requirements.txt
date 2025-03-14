@@ -7,3 +7,5 @@ rich
 pynvim
 aider
 rich
+inflect
+openai
