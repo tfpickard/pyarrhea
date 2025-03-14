@@ -252,8 +252,8 @@ def main():
     num_speakers = len(transcripts[1])
     chatgpt_response = send_to_chatgpt_4o(final_transcript, num_speakers)
     if chatgpt_response:
-        print("GPT-4o Speaker Identification:")
-        print(chatgpt_response)
+        print(Panel(chatgpt_response, title="[bold magenta]GPT-4o Speaker Identification[/bold magenta]", 
+                    border_style="bold green", expand=False))
 
 if __name__ == "__main__":
     main()
