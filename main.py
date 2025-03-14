@@ -101,7 +101,7 @@ def transcribe_audio_segments(audio_file, segments):
         })
         if seg['speaker'] not in speakers:
             speakers[seg['speaker']] = [0,len(speakers)+1]
-        speakers[seg['speaker']][0] = speakers.get(seg['speaker'][0], 0) + 1
+        speakers[seg['speaker']][0] = speakers.get(seg['speaker'], [0,0])[0] + 1
         c = speakers[seg['speaker']][0]
         i = speakers[seg['speaker']][1]
         n = len(speakers)
