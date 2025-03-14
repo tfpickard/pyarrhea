@@ -8,7 +8,9 @@ from yt_dlp import YoutubeDL
 from rich import print
 from rich.panel import Panel
 import inflect
-import openai
+from openai import OpenAI
+
+client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 import requests
 import threading
 import simpleaudio as sa
@@ -129,7 +131,7 @@ def transcribe_audio_segments(audio_file, segments):
             seg_audio
         ]
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+
         # Function to play audio
         # def play_audio(file_path):
         #     wave_obj = sa.WaveObject.from_wave_file(file_path)
@@ -140,7 +142,7 @@ def transcribe_audio_segments(audio_file, segments):
         # audio_thread = threading.Thread(target=play_audio, args=(seg_audio,))
         # audio_thread.start()
         result = model.transcribe(seg_audio)
-        
+
         transcripts.append({
             'start': seg['start'],
             'end': seg['end'],
@@ -149,6 +151,7 @@ def transcribe_audio_segments(audio_file, segments):
         })
         if seg['speaker'] not in speakers:
             speakers[seg['speaker']] = [0,len(speakers)+1]
+            print(f"New speaker number {len(speakers)+1}: {seg['speaker']}")
         speakers[seg['speaker']][0] = speakers.get(seg['speaker'], [0,0])[0] + 1
         c = speakers[seg['speaker']][0]
         cc = inflector.ordinal(c)
@@ -167,10 +170,10 @@ def transcribe_audio_segments(audio_file, segments):
         ttext = f"{stk[0]}Transcription{stk[1]} {stv[0]}{i}: {stv[1]}"
         ttext += f"{num['plum'][0]}({dur:.2f}s{num['plum'][1]})\n"
         text = f"{ssk[0]}Speaker{ssk[1]} "
-        text += f"({num['plum'][0]}{cc}{num['plum'][1]} of "
+        text += f"({num['plum'][0]}{ss}{num['plum'][1]} of "
         text += f"{num['sg'][0]}{n}{num['sg'][1]}: "
         text += f"{ssv[0]}{seg['speaker']},{ssv[1]} "
-        text += f"{num['orange'][0]}{ss} {num['orange'][1]}"
+        text += f"{num['orange'][0]}{cc} {num['orange'][1]}"
         text += f"{ssv[0]}voice detection so far{ssv[1]}\n"
         text += f"{sdk[0]}Duration:{sdk[1]} "
         text += f"{sdv[0]}{seg['start']:.2f} - {seg['end']:.2f}{sdv[1]} "
@@ -187,7 +190,12 @@ def transcribe_audio_segments(audio_file, segments):
 # Step 5: Merge transcripts with speaker annotations
 def merge_transcripts(transcripts):
     # Sort segments by start time
-    transcripts.sort(key=lambda x: x['start'])
+    try:
+        transcripts.sort(key=lambda x: x['start'])
+    except Exception as e:
+        print(transcripts)
+        print(f"transcripts type {type(transcripts)}")
+        print(f"Error sorting transcripts: {e}")
     merged_text = ""
     for seg in transcripts:
         merged_text += f"[{seg['start']:.2f} - {seg['end']:.2f}] {seg['speaker']}: {seg['text']}\n"
@@ -200,24 +208,23 @@ def get_id_from_url(url):
         id = url.split("v=")[-1].split("&")[0]
     return id
 def send_to_chatgpt_4o(transcript, num_speakers):
-    openai.api_key = os.environ['OPENAI_API_KEY']
     prompt = (
         f"The following transcript contains {num_speakers} speakers. "
         "Please identify the speakers based on any names or hints in the text. "
         "If identities cannot be inferred, suggest roles such as interviewer/interviewee, father/son, etc.\n\n"
         f"{transcript}"
     )
-    response = openai.Completion.create(
-        model="gpt-4o",
-        prompt=prompt,
-        max_tokens=500,
-        temperature=0.5
-    )
+    response = client.completions.create(model="gpt-4o",
+    prompt=prompt,
+    max_tokens=500,
+    temperature=0.5)
     if response:
         return response.choices[0].text.strip()
     else:
         print("Failed to get a response from GPT-4o.")
         return None
+
+def main():
     args = parse_arguments()
     if args.video_url:
         video_id = get_id_from_url(args.video_url)
@@ -227,23 +234,26 @@ def send_to_chatgpt_4o(transcript, num_speakers):
     else:
         print("Please provide a video URL or ID.")
         sys.exit(1)
-    
+
     video_file = download_video(video_id, force=args.force_download)
     print(video_file)
     audio_file = extract_audio(video_file, force=args.force_extraction)
-    
+
     segments = diarize_audio(audio_file)
-    transcripts = transcribe_audio_segments(audio_file, segments)
+    transcripts, speakers = transcribe_audio_segments(audio_file, segments)
     final_transcript = merge_transcripts(transcripts)
-    
+
     with open("final_transcript.txt", "w", encoding="utf-8") as f:
         f.write(final_transcript)
-    
+
     print("Transcription complete! Check final_transcript.txt")
-    
+
     # Send the final transcript to ChatGPT 4o
     num_speakers = len(transcripts[1])
     chatgpt_response = send_to_chatgpt_4o(final_transcript, num_speakers)
     if chatgpt_response:
         print("GPT-4o Speaker Identification:")
         print(chatgpt_response)
+
+if __name__ == "__main__":
+    main()
