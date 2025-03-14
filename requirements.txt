@@ -1,0 +1,9 @@
+yt-dlp
+ffmpeg-python
+pyannote.audio
+#openai-whisper
+resemblyzer
+rich
+pynvim
+aider
+rich
