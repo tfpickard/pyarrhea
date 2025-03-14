@@ -129,15 +129,14 @@ def transcribe_audio_segments(audio_file, segments):
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         # Function to play audio
-        def play_audio(file_path):
-            wave_obj = sa.WaveObject.from_wave_file(file_path)
-            play_obj = wave_obj.play()
-            play_obj.wait_done()
-
-        # Start a thread to play the audio
-        audio_thread = threading.Thread(target=play_audio, args=(seg_audio,))
-        audio_thread.start()
-        audio_thread.join()
+        # def play_audio(file_path):
+        #     wave_obj = sa.WaveObject.from_wave_file(file_path)
+        #     play_obj = wave_obj.play()
+        #     play_obj.wait_done()
+        #
+        # # Start a thread to play the audio
+        # audio_thread = threading.Thread(target=play_audio, args=(seg_audio,))
+        # audio_thread.start()
         result = model.transcribe(seg_audio)
         
         transcripts.append({
@@ -178,6 +177,7 @@ def transcribe_audio_segments(audio_file, segments):
         text += f"[italic honeydew2]{t}[/italic honeydew2]\n"
         # sys.stdout(text)
         print(Panel(text, title=ttext))
+        # audio_thread.join()  # Wait for the audio to finish playing
         os.remove(seg_audio)  # Clean up the temporary file
         i += 1
     return (transcripts, speakers)
