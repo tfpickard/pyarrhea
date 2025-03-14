@@ -207,27 +207,54 @@ def get_id_from_url(url):
     else:
         id = url.split("v=")[-1].split("&")[0]
     return id
-def send_to_chatgpt_4o(transcript, num_speakers):
+def send_to_chatgpt_4o(transcript, num_speakers, max_length=4096):
+    def chunk_transcript(text, max_length):
+        # Split the transcript into chunks of max_length
+        words = text.split()
+        chunks = []
+        current_chunk = []
+        current_length = 0
+
+        for word in words:
+            if current_length + len(word) + 1 > max_length:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = [word]
+                current_length = len(word) + 1
+            else:
+                current_chunk.append(word)
+                current_length += len(word) + 1
+
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+
+        return chunks
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that identifies speakers in a transcript."
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        "Here is a transcript with multiple speakers. "
-                        "Please attempt to identify the speakers based on any names or identifying information. "
-                        "If you cannot identify them, infer any relationships that may exist, such as interviewer and interviewee. "
-                        "Transcript:\n" + transcript
-                    )
-                }
-            ]
-        )
-        return response.choices[0].message.content
+        chunks = chunk_transcript(transcript, max_length)
+        responses = []
+
+        for chunk in chunks:
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant that identifies speakers in a transcript."
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            "Here is a part of a transcript with multiple speakers. "
+                            "Please attempt to identify the speakers based on any names or identifying information. "
+                            "If you cannot identify them, infer any relationships that may exist, such as interviewer and interviewee. "
+                            "Transcript:\n" + chunk
+                        )
+                    }
+                ]
+            )
+            responses.append(response.choices[0].message.content)
+
+        return "\n".join(responses)
     except Exception as e:
         print(f"Error communicating with OpenAI API: {e}")
         return None
