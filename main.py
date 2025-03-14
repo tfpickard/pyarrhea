@@ -2,6 +2,7 @@
 import time
 import os
 import argparse
+import sys
 import subprocess
 from yt_dlp import YoutubeDL
 from rich import print
