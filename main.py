@@ -22,10 +22,10 @@ def parse_arguments():
 
 def download_video(id, output_dir="downloads", force=False):
     os.makedirs(output_dir, exist_ok=True)
-    url = f"https://www.youtube.com/watch?v={video_id}"
+    url = f"https://www.youtube.com/watch?v={id}"
     if os.path.exists(os.path.join(output_dir, f"{id}.mp4")) and not force:
         print("Video already downloaded.")
-        return os.path.join(output_dir, f"{video_id}.mp4")
+        return os.path.join(output_dir, f"{id}.mp4")
     ydl_opts = {
         'outtmpl': os.path.join(output_dir, '%(id)s.%(ext)s'),
         'format': 'mp4',
