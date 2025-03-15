@@ -9,6 +9,8 @@ from rich import print
 from rich.panel import Panel
 import inflect
 from openai import OpenAI
+import re 
+import unicodedata
 
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 import requests
@@ -23,6 +25,25 @@ def parse_arguments():
     parser.add_argument('-e', '--force-extraction', action='store_true', help='Force audio extraction even if it exists')
     return parser.parse_args()
 
+
+def sanitize_filename(filename: str, max_length: int = 255) -> str:
+    # Normalize Unicode characters
+    filename = unicodedata.normalize('NFKD', filename)
+
+    # Replace spaces with dashes
+    filename = filename.replace(" ", "-")
+
+    # Remove invalid filename characters (Linux-friendly: alphanumeric, -, _, and .)
+    filename = re.sub(r'[<>:"/\\|?*]', '', filename)  # Remove Windows-invalid chars
+    filename = re.sub(r'[^\w\-.]', '', filename)  # Keep alphanumeric, _, -, .
+
+    # Trim leading/trailing dots and dashes to prevent hidden files or invalid names
+    filename = filename.strip("-.")
+
+    # Limit length (Linux typically allows 255-byte filenames)
+    return filename[:max_length]
+
+# Step 1: Download the YouTube video using yt-dlp
 def download_video(id, output_dir="downloads", force=False):
     os.makedirs(output_dir, exist_ok=True)
     url = f"https://www.youtube.com/watch?v={id}"
@@ -30,13 +51,17 @@ def download_video(id, output_dir="downloads", force=False):
         print("Video already downloaded.")
         return os.path.join(output_dir, f"{id}.mp4")
     ydl_opts = {
-        'outtmpl': os.path.join(output_dir, '%(id)s.%(ext)s'),
+        'outtmpl': os.path.join(output_dir, '%(channel)s_%(title)s_%(id)s.%(ext)s'),
         'format': 'mp4',
         'verbose': False
     }
     with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
+        info = ydl.extract_info(url, download=False)
+        # print(info)
+        filename = os.path.join(output_dir,
+                                sanitize_filename(ydl.prepare_filename(info)))
+        ydl.params['outtmpl']['default'] = filename
+        ydl.download(url)
     return filename
 
 # Step 2: Extract audio using ffmpeg
@@ -141,7 +166,10 @@ def transcribe_audio_segments(audio_file, segments):
         # # Start a thread to play the audio
         # audio_thread = threading.Thread(target=play_audio, args=(seg_audio,))
         # audio_thread.start()
+        start_time = time.time()
         result = model.transcribe(seg_audio)
+        # print(result)
+        print(f"Transcription time: {time.time() - start_time:.2f} seconds")
 
         transcripts.append({
             'start': seg['start'],
@@ -229,30 +257,63 @@ def send_to_chatgpt_4o(transcript, num_speakers, max_length=4096):
 
         return chunks
 
+    def send_to_llm(messages: list, model: str = "gpt-4o") -> str:
+        print(f"Sending the following to {model}")
+        n = 80
+        content = messages[-1]["content"]
+        print(content[:n] + "..." if len(content) > n else content)
+        start_time = time.time()
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages
+        )
+        print(f"Response time: {time.time() - start_time:.2f} seconds")
+        return response.choices[0].message.content
+
     try:
         chunks = chunk_transcript(transcript, max_length)
         responses = []
 
-        for chunk in chunks:
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that identifies speakers in a transcript."
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            "Here is a part of a transcript with multiple speakers. "
-                            "Please attempt to identify the speakers based on any names or identifying information. "
-                            "If you cannot identify them, infer any relationships that may exist, such as interviewer and interviewee. "
-                            "Transcript:\n" + chunk
-                        )
-                    }
-                ]
-            )
-            responses.append(response.choices[0].message.content)
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a highly perceptive assistant that identifies speakers in a transcript."
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Here is a part of a transcript with multiple speakers. "
+                    "Please attempt to identify the speakers based on any names or identifying information. "
+                    "If you cannot identify them, infer any relationships that may exist, such as interviewer and interviewee. "
+                    "Transcript:\n" 
+                )
+            }
+        ]
+        for i, chunk in enumerate(chunks):
+            m = messages
+            m[-1]["content"] += chunk
+            prefix = ""
+            if len(chunks) > 1:
+                prefix = "Response {i}:\n"
+            responses.append(f"{prefix}{send_to_llm(m)}\n\n")
+        if len(chunks) > 1:
+            m = messages
+            m[-1]["content"] = f"""
+                I want to identify the names of the speakers in a conversation.
+                A diarization model has guessed that there are {num_speakers} 
+                speakers in the audio. I have split it into {len(chunks)} parts 
+                and sent them to you with the following instructions:
+                "Here is a part of a transcript with multiple speakers. Please
+                attempt to identify the speakers based on any names or 
+                identifying information. If you cannot identify them, infer 
+                any relationships that may exist, such as interviewer and 
+                interviewee."
+                Please review all of your responses and provide the best and
+                most concise guess possible for who the speakers are:
+
+                {"\n".join(responses)}
+            """
+            responses.append(f"{send_to_llm(m)}")
 
         return "\n".join(responses)
     except Exception as e:

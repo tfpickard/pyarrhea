@@ -1,0 +1,5 @@
+.aider*
+*.mp4
+*.wav
+downloads/*
+*transcript*.txt
